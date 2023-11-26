@@ -1,0 +1,41 @@
+FROM debian:buster-slim
+
+# From https://github.com/nadirizr/dazel/blob/master/Dockerfile
+ENV BAZEL_VERSION 6.2.1
+
+# Creating the man pages directory to deal with the slim variants not having it.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" > \
+    /etc/apt/sources.list.d/bazel.list \
+    && curl https://bazel.build/bazel-release.pub.gpg | apt-key add - \
+    && apt-get update && apt-get install -y --no-install-recommends bazel=${BAZEL_VERSION} \
+    && apt-get purge --auto-remove -y curl gnupg \
+    && rm -rf /etc/apt/sources.list.d/bazel.list \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Custom Docker image on top of dazel
+RUN apt-get update -y && \
+    apt-get install -y wget && \
+    wget https://apt.devkitpro.org/install-devkitpro-pacman && \
+    chmod +x ./install-devkitpro-pacman && \
+    yes "Y" | ./install-devkitpro-pacman
+
+RUN dkp-pacman -S --noconfirm switch-dev
+
+RUN   apt-get  update       \
+    &&  apt-get  install  -y  \
+    python3                 \
+    python3-pip             \
+    &&  pip3  install  keystone-engine  \
+    ;
+
+# Fix path for compiling protobuf library needed for cc_proto_library
+RUN ln -s /opt/devkitpro/devkitA64/aarch64-none-elf/include/machine/endian.h /opt/devkitpro/devkitA64/aarch64-none-elf/include/endian.h
+
+COPY ./devkitpro-bazel/aarch64-none-elf-g++-wrapper.sh /opt/devkitpro/devkitA64/bin/
+COPY ./devkitpro-bazel/aarch64-none-elf-g++-wrapper.py /opt/devkitpro/devkitA64/bin/
+RUN chmod +x /opt/devkitpro/devkitA64/bin/aarch64-none-elf-g++-wrapper.sh
+
+COPY ./devkitpro-bazel/specs /specs
+COPY ./devkitpro-bazel/patches /patches
